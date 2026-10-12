@@ -9,6 +9,7 @@ import { DoctorProfile } from '../models/DoctorProfile.js';
 import { Medicine } from '../models/Medicine.js';
 import { slugify } from './helpers.js';
 import { logger } from './logger.js';
+import { EXTRA_DOCTORS, EXTRA_PHARMACISTS, EXTRA_RIDERS, EXTRA_PATIENTS, buildMedicines } from './seedData.js';
 
 const hash = (p) => bcrypt.hash(p, 10);
 
@@ -105,6 +106,11 @@ export async function seed({ log = true } = {}) {
     prefs: { emailConfirmations: true, whatsappConfirmations: false, whatsappNumber: '919999999999' },
     addresses: [{ label: 'Home', line1: '12, Green Park', city: 'New Delhi', state: 'Delhi', pincode: '110016', isDefault: true, location: { lat: 28.5494, lng: 77.2001 } }],
   }, 'Patient@12345');
+  for (const [email, name, phone] of EXTRA_PHARMACISTS) await upsertUser(email, { name, role: 'pharmacist', phone }, 'Pharma@12345');
+  for (const [email, name, phone, lat, lng] of EXTRA_RIDERS) await upsertUser(email, { name, role: 'rider', phone, rider: { online: true, location: { lat, lng } } }, riderPw);
+  for (const [email, name, phone, gender, bloodGroup] of EXTRA_PATIENTS) {
+    await upsertUser(email, { name, role: 'patient', phone, gender, bloodGroup, prefs: { emailConfirmations: true, whatsappConfirmations: false } }, 'Patient@12345');
+  }
   say('users ready');
 
   const deptIds = {};
@@ -114,26 +120,31 @@ export async function seed({ log = true } = {}) {
   }
   say(`${DEPARTMENTS.length} departments`);
 
-  for (const d of DOCTORS) {
+  const allDoctors = [...DOCTORS, ...EXTRA_DOCTORS];
+  for (const d of allDoctors) {
     const email = `${d.email}@carepulse.local`;
     const user = await upsertUser(email, { name: `${d.name}`, role: 'doctor' }, 'Doctor@12345');
     if (await DoctorProfile.exists({ user: user._id })) continue;
     await DoctorProfile.create({
       user: user._id, name: d.name, slug: slugify(`dr-${d.name}`), department: deptIds[d.dept], specialization: d.spec,
-      qualifications: d.q, registrationNo: `REG-${Math.floor(10000 + Math.random() * 89999)}`, experienceYears: d.exp,
+      qualifications: d.q, registrationNo: d.reg || `REG-${Math.floor(10000 + Math.random() * 89999)}`, experienceYears: d.exp,
       bio: `${d.name} is a ${d.spec} with ${d.exp} years of experience, known for patient-first care and clear explanations.`,
       languages: ['English', 'Hindi'], conditionsTreated: d.conditions, fees: { in_person: d.fee[0], video: d.fee[1] },
       modes: d.modes, slotMinutes: 15, room: `OPD ${100 + Math.floor(Math.random() * 20)}`, weekly: d.weekly,
       rating: { avg: Number((4 + Math.random()).toFixed(1)), count: 20 + Math.floor(Math.random() * 200) },
     });
   }
-  say(`${DOCTORS.length} doctors`);
+  say(`${allDoctors.length} doctors`);
 
-  for (const [name, generic, category, form, strength, mrp, price, stock, rx, manufacturer] of MEDICINES) {
+  const allMedicines = [...MEDICINES, ...buildMedicines()];
+  const ops = allMedicines.map(([name, generic, category, form, strength, mrp, price, stock, rx, manufacturer]) => {
     const slug = slugify(`${name}-${strength}`);
-    await Medicine.updateOne({ slug }, { $setOnInsert: { name, slug, generic, category, form, strength, mrp, price, stock, requiresPrescription: rx, manufacturer, packSize: form === 'Tablet' ? '10 tablets' : '1 unit' } }, { upsert: true });
-  }
-  say(`${MEDICINES.length} medicines`);
+    const packSize = { Tablet: '10 tablets', Capsule: '10 capsules', Syrup: '1 bottle', Injection: '1 vial', Drops: '1 bottle' }[form] || '1 unit';
+    return { updateOne: { filter: { slug }, update: { $setOnInsert: { name, slug, generic, category, form, strength, mrp, price, stock, requiresPrescription: rx, manufacturer, packSize } }, upsert: true } };
+  });
+  if (new Set(ops.map((o) => o.updateOne.filter.slug)).size !== ops.length) throw new Error('Duplicate medicine slugs in seed data');
+  await Medicine.bulkWrite(ops, { ordered: false });
+  say(`${allMedicines.length} medicines`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

@@ -19,7 +19,10 @@ export function setRedis(c) {
 
 /** BullMQ & socket adapter need dedicated connections with maxRetriesPerRequest=null. */
 export function createRedisConnection() {
-  return new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+  const c = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
+  // Without a listener ioredis rethrows 'error' events and kills the process.
+  c.on('error', (e) => !isTest && logger.error({ err: e.message }, 'redis connection error'));
+  return c;
 }
 
 export async function closeRedis() {

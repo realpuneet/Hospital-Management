@@ -42,6 +42,7 @@ export function initSocket(httpServer) {
 
   const pub = createRedisConnection();
   const sub = pub.duplicate();
+  sub.on('error', (e) => logger.error({ err: e.message }, 'redis sub error'));
   io.adapter(createAdapter(pub, sub));
 
   // bridge for events published by worker processes
