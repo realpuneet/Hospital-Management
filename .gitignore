@@ -1,0 +1,27 @@
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.vite/
+dev-dist/
+*.log
+logs/
+npm-debug.log*
+
+# Project notes (not tracked)
+TODO.md
+
+# OS / editor
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# Local dev databases / scratch
+mongodata/
+*.rdb
+.claude/

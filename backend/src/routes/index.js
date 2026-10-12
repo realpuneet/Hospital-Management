@@ -1,0 +1,25 @@
+import { Router } from 'express';
+import auth from './auth.routes.js';
+import users from './user.routes.js';
+import catalog from './catalog.routes.js';
+import appointments from './appointment.routes.js';
+import doctor from './doctor.routes.js';
+import prescriptions from './prescription.routes.js';
+import { orders, pharmacy, rider } from './pharmacy.routes.js';
+import admin from './admin.routes.js';
+import payments from './payment.routes.js';
+
+const r = Router();
+r.get('/health', (_req, res) => res.json({ success: true, data: { status: 'ok', uptime: process.uptime() } }));
+r.use('/auth', auth);
+r.use('/me', users);
+r.use('/', catalog);
+r.use('/appointments', appointments);
+r.use('/doctor', doctor);
+r.use('/prescriptions', prescriptions);
+r.use('/orders', orders);
+r.use('/pharmacy', pharmacy);
+r.use('/rider', rider);
+r.use('/admin', admin);
+r.use('/payments', payments);
+export default r;
